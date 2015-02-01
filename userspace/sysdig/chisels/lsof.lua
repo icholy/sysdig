@@ -79,14 +79,10 @@ function on_capture_end()
 		extend_string("TYPE", 12) ..
 		"NAME")
 
-	ptable = {}
-
-	for _, proc in sorted_ttable do
+	for tid, proc in sorted_ttable do
 		local fdtable = proc.fdtable
 
-		if ptable[proc.pid] ~= true then
-			ptable[proc.pid] = true
-
+		if tid == proc.pid then
 			for fd, fdinfo in pairs(fdtable) do
 				print(extend_string(proc.comm, 20) ..
 					extend_string(tostring(proc.pid), 8) ..
