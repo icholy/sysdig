@@ -8,18 +8,18 @@ published by the Free Software Foundation.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
+along with this program.	If not, see <http://www.gnu.org/licenses/>.
 --]]
 
 -- Chisel description
 description = "This chisel prints the open file descriptors for every process in the system, with an output that is similar to the one of lsof";
 short_description = "List (and optionally filter) the open file descriptors.";
 category = "System State";
-		   
+			 
 -- Argument list
 args = 
 {
@@ -27,6 +27,12 @@ args =
 		name = "filter",
 		description = "a sysdig-like filter expression that allows restricting the FD list. E.g. 'proc.name=foo and fd.name contains /etc'.", 
 		argtype = "filter",
+		optional = true
+	},
+	{
+		name = "show_threads",
+		description = "Set to display file descriptors by thread id instead of process id",
+		argtype = "string",
 		optional = true
 	}
 }
@@ -36,11 +42,16 @@ require "common"
 local dctable = {}
 local capturing = false
 local filter = nil
+local show_threads = false
 
 -- Argument notification callback
 function on_set_arg(name, val)
 	if name == "filter" then
 		filter = val
+		return true
+	end
+	if name == "show_threads" then
+		show_threads = true
 		return true
 	end
 
@@ -67,30 +78,53 @@ function on_capture_end()
 	if not capturing then
 		return
 	end
-
+	
 	local ttable = sysdig.get_thread_table(filter)
 
 	local sorted_ttable = pairs_top_by_val(ttable, 0, function(t,a,b) return a < b end)
 
-	print(extend_string("COMMAND", 20) ..
-		extend_string("PID", 8) ..
-		extend_string("USER", 8) ..
-		extend_string("FD", 8) ..
-		extend_string("TYPE", 12) ..
-		"NAME")
+	if show_threads then
+		print(extend_string("COMMAND", 20) ..
+			extend_string("PID", 8) ..
+			extend_string("TID", 8) ..
+			extend_string("USER", 8) ..
+			extend_string("FD", 8) ..
+			extend_string("TYPE", 12) ..
+			"NAME")
+	else
+		print(extend_string("COMMAND", 20) ..
+			extend_string("PID", 8) ..
+			extend_string("USER", 8) ..
+			extend_string("FD", 8) ..
+			extend_string("TYPE", 12) ..
+			"NAME")
+	end
 
 	for tid, proc in sorted_ttable do
-		local fdtable = proc.fdtable
 
-		if tid == proc.pid then
+		if tid == proc.pid or not show_threads then
+
+			local fdtable = proc.fdtable
+
 			for fd, fdinfo in pairs(fdtable) do
-				print(extend_string(proc.comm, 20) ..
-					extend_string(tostring(proc.pid), 8) ..
-					extend_string(proc.username, 8) ..
-					extend_string(tostring(fd), 8) ..
-					extend_string(tostring(fdinfo.type), 12) ..
-					tostring(fdinfo.name))
+				if show_threads then
+					print(extend_string(proc.comm, 20) ..
+						extend_string(tostring(proc.pid), 8) ..
+						extend_string(tostring(tid), 8) ..
+						extend_string(proc.username, 8) ..
+						extend_string(tostring(fd), 8) ..
+						extend_string(tostring(fdinfo.type), 12) ..
+						tostring(fdinfo.name))
+				else
+					print(extend_string(proc.comm, 20) ..
+						extend_string(tostring(proc.pid), 8) ..
+						extend_string(proc.username, 8) ..
+						extend_string(tostring(fd), 8) ..
+						extend_string(tostring(fdinfo.type), 12) ..
+						tostring(fdinfo.name))
+				end
 			end
 		end
+
 	end
 end
